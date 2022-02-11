@@ -50437,11 +50437,9 @@ static SDValue combineToExtendCMOV(SDNode *Extend, SelectionDAG &DAG) {
 
 // Convert (vXiY *ext(vXi1 bitcast(iX))) to extend_in_reg(broadcast(iX)).
 // This is more or less the reverse of combineBitcastvxi1.
-static SDValue
-combineToExtendBoolVectorInReg(SDNode *N, SelectionDAG &DAG,
-                               TargetLowering::DAGCombinerInfo &DCI,
-                               const X86Subtarget &Subtarget) {
-  unsigned Opcode = N->getOpcode();
+static SDValue combineToExtendBoolVectorInReg(
+    unsigned Opcode, const SDLoc &DL, EVT VT, SDValue N0, SelectionDAG &DAG,
+    TargetLowering::DAGCombinerInfo &DCI, const X86Subtarget &Subtarget) {
   if (Opcode != ISD::SIGN_EXTEND && Opcode != ISD::ZERO_EXTEND &&
       Opcode != ISD::ANY_EXTEND)
     return SDValue();
@@ -50450,8 +50448,6 @@ combineToExtendBoolVectorInReg(SDNode *N, SelectionDAG &DAG,
   if (!Subtarget.hasSSE2() || Subtarget.hasAVX512())
     return SDValue();
 
-  SDValue N0 = N->getOperand(0);
-  EVT VT = N->getValueType(0);
   EVT SVT = VT.getScalarType();
   EVT InSVT = N0.getValueType().getScalarType();
   unsigned EltSizeInBits = SVT.getSizeInBits();
@@ -50466,13 +50462,12 @@ combineToExtendBoolVectorInReg(SDNode *N, SelectionDAG &DAG,
     return SDValue();
 
   SDValue N00 = N0.getOperand(0);
-  EVT SclVT = N0.getOperand(0).getValueType();
+  EVT SclVT = N00.getValueType();
   if (!SclVT.isScalarInteger())
     return SDValue();
 
-  SDLoc DL(N);
   SDValue Vec;
-  SmallVector<int, 32> ShuffleMask;
+  SmallVector<int> ShuffleMask;
   unsigned NumElts = VT.getVectorNumElements();
   assert(NumElts == SclVT.getSizeInBits() && "Unexpected bool vector size");
 
@@ -50618,7 +50613,8 @@ static SDValue combineSext(SDNode *N, SelectionDAG &DAG,
   if (SDValue V = combineExtSetcc(N, DAG, Subtarget))
     return V;
 
-  if (SDValue V = combineToExtendBoolVectorInReg(N, DAG, DCI, Subtarget))
+  if (SDValue V = combineToExtendBoolVectorInReg(N->getOpcode(), DL, VT, N0,
+                                                 DAG, DCI, Subtarget))
     return V;
 
   if (VT.isVector()) {
@@ -50772,7 +50768,8 @@ static SDValue combineZext(SDNode *N, SelectionDAG &DAG,
     if (SDValue V = combineExtSetcc(N, DAG, Subtarget))
       return V;
 
-  if (SDValue V = combineToExtendBoolVectorInReg(N, DAG, DCI, Subtarget))
+  if (SDValue V = combineToExtendBoolVectorInReg(N->getOpcode(), dl, VT, N0,
+                                                 DAG, DCI, Subtarget))
     return V;
 
   if (VT.isVector())
